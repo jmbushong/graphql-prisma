@@ -15,47 +15,30 @@ import uuidv4 from "uuid/v4";
 //laptop.powerStatus - on - off - sleep
 
 const Mutation = {
-  createUser(parent, args, { db }, info) {
-    const emailTaken = db.users.some((user) => user.email === args.data.email);
+  async createUser(parent, args, { prisma }, info) {
+    const emailTaken = await prisma.exists.User({ email: args.data.email });
 
     if (emailTaken) {
       throw new Error("Email taken");
     }
 
-    const user = {
-      id: uuidv4(),
-      ...args.data,
-    };
-
-    db.users.push(user);
-
-    return user;
+    return prisma.mutation.createUser({ data: args.data }, info);
   },
 
-  deleteUser(parent, args, { db }, info) {
-    const userIndex = db.users.findIndex((user) => user.id === args.id);
-
-    if (userIndex === -1) {
-      throw new Error("User not found");
+  async deleteUser(parent, args, { prisma }, info) {
+    const userExists= await prisma.exists.User({id: args.id})
+   
+    if(!userExists){
+      throw new Error ("User not found")
     }
-    //delete user- returns array of objects --in this case just one
-    const deletedUsers = db.users.splice(userIndex, 1);
-
-    //remove all associated posts & comments- only keeping posts that do not belong to the user
-    db.posts = db.posts.filter((post) => {
-      const match = post.author === args.id;
-
-      //if the comment belongs to the post that was just deleted--it gets deleted
-      if (match) {
-        db.comments = comments.filter((comment) => comment.post !== post.id);
+    
+    return prisma.mutation.deleteUser({
+      where: {
+        id: args.id
       }
-      return !match;
-    });
+    }, info)
 
-    //remove all comments that this user has created
-    db.comments = db.comments.filter((comment) => comment.author !== args.id);
-
-    return deletedUsers[0];
+  
   },
   updateUser(parents, args, { db }, info) {
     const { id, data } = args;
@@ -108,12 +91,12 @@ const Mutation = {
 
     db.comments.push(comment);
 
-    pubsub.publish(`comment ${args.data.post}`, { 
+    pubsub.publish(`comment ${args.data.post}`, {
       comment: {
-      mutation: "CREATED",
-      data: comment
-    }})
-
+        mutation: "CREATED",
+        data: comment,
+      },
+    });
 
     return comment;
   },
@@ -127,37 +110,35 @@ const Mutation = {
 
     const deletedComment = db.comments.splice(commentIndex, 1);
 
-    pubsub.publish(`comment ${deletedComment[0].post}`, { 
+    pubsub.publish(`comment ${deletedComment[0].post}`, {
       comment: {
-      mutation: "DELETED",
-      data: deletedComment[0]
-    }})
+        mutation: "DELETED",
+        data: deletedComment[0],
+      },
+    });
 
     return deletedComment[0];
   },
 
-  updateComment(parent, args, { db, pubsub }, info){
-    const comment= db.comments.find((comment) => comment.id === args.id)
+  updateComment(parent, args, { db, pubsub }, info) {
+    const comment = db.comments.find((comment) => comment.id === args.id);
 
-    if(!comment){
-        throw new Error ('Comment not found')
+    if (!comment) {
+      throw new Error("Comment not found");
     }
 
-    if(typeof args.data.text === "string"){
-        comment.text= args.data.text
-      
-
+    if (typeof args.data.text === "string") {
+      comment.text = args.data.text;
     }
 
-    pubsub.publish(`comment ${comment.post}`, { 
+    pubsub.publish(`comment ${comment.post}`, {
       comment: {
-      mutation: "UPDATED",
-      data: comment
-    }})
-    
+        mutation: "UPDATED",
+        data: comment,
+      },
+    });
 
-    return comment
-
+    return comment;
   },
 
   createPost(parent, args, { db, pubsub }, info) {
@@ -177,15 +158,14 @@ const Mutation = {
 
     db.posts.push(post);
 
-    if(args.data.published){
-      pubsub.publish('post', {
+    if (args.data.published) {
+      pubsub.publish("post", {
         post: {
           mutation: "CREATED",
-          data: post
-        }
-      })
+          data: post,
+        },
+      });
     }
-  
 
     return post;
   },
@@ -204,14 +184,13 @@ const Mutation = {
     //remove all associated comments
     db.comments = db.comments.filter((comment) => comment.post !== args.id);
 
-    if(deletedPosts[0].published){
-      pubsub.publish('post', {
-        post:{
-          mutation: 'DELETED',
-          data: deletedPosts[0]
-        }
-      })
-
+    if (deletedPosts[0].published) {
+      pubsub.publish("post", {
+        post: {
+          mutation: "DELETED",
+          data: deletedPosts[0],
+        },
+      });
     }
 
     return deletedPosts[0];
@@ -219,7 +198,7 @@ const Mutation = {
 
   updatePost(parent, args, { db, pubsub }, info) {
     const post = db.posts.find((post) => post.id === args.id);
-    const originalPost= {...post}
+    const originalPost = { ...post };
 
     if (!post) {
       throw new Error("Post not found");
@@ -236,36 +215,32 @@ const Mutation = {
     if (typeof args.data.published === "boolean") {
       post.published = args.data.published;
 
-      if(originalPost.published && !post.published){
-        //deleted 
-        pubsub.publish('post', {
-          post:{
+      if (originalPost.published && !post.published) {
+        //deleted
+        pubsub.publish("post", {
+          post: {
             mutation: "DELETED",
-            data: originalPost
-          }
-        })
-
-      }else if(!originalPost.published && post.published) {
+            data: originalPost,
+          },
+        });
+      } else if (!originalPost.published && post.published) {
         //created
-         //deleted 
-         pubsub.publish('post', {
-          post:{
+        //deleted
+        pubsub.publish("post", {
+          post: {
             mutation: "CREATED",
-            data: post
-          }
-        })
-      }else if(post.published) {
+            data: post,
+          },
+        });
+      } else if (post.published) {
         //updated
-        pubsub.publish('post', {
-          post:{
+        pubsub.publish("post", {
+          post: {
             mutation: "UPDATED",
-            data: post
-          }
-        })
-
+            data: post,
+          },
+        });
       }
-
-
     }
 
     return post;
