@@ -58,21 +58,21 @@ const Query = {
         //   return isTitleMatch || isBodyMatch;
         // });
       },
-      me() {
-        return {
-          id: "123098",
-          name: "Mike",
-          email: "mike@example.com",
-        };
-      },
-      post() {
-        return {
-          id: "54321",
-          title: "Best Day Ever",
-          body: "What a wonderful day!",
-          published: true,
-        };
-      },
+      // me() {
+      //   return {
+      //     id: "123098",
+      //     name: "Mike",
+      //     email: "mike@example.com",
+      //   };
+      // },
+      // post() {
+      //   return {
+      //     id: "54321",
+      //     title: "Best Day Ever",
+      //     body: "What a wonderful day!",
+      //     published: true,
+      //   };
+      // },
 }
 
 export { Query as default}
